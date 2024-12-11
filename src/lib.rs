@@ -620,6 +620,32 @@ impl WebVtt {
             .metadata
             .insert(key.to_string(), value.to_string());
     }
+
+    /// Creates a `WebVtt` instance by reading from any type that implements `std::io::Read`.
+    ///
+    /// This function reads the entire contents from the provided reader and parses it as WebVTT data.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use std::io::Cursor;
+    /// use vtt::WebVtt;
+    ///
+    /// let data = b"WEBVTT\n\n00:00:01.000 --> 00:00:05.000\nHello, world!";
+    /// let reader = Cursor::new(&data[..]);
+    /// let vtt = WebVtt::from_reader(reader).unwrap();
+    /// assert_eq!(vtt.cues.len(), 1);
+    /// assert_eq!(vtt.cues[0].payload, "Hello, world!");
+    /// ```
+    pub fn from_reader<R: std::io::Read>(reader: R) -> Result<Self, VttParseError> {
+        use std::io::Read;
+        let mut buffer = String::new();
+        let mut buf_reader = std::io::BufReader::new(reader);
+        buf_reader
+            .read_to_string(&mut buffer)
+            .map_err(|_| VttParseError::InvalidFormat)?;
+        Self::from_str(&buffer)
+    }
 }
 
 /// Represents the header section of a WebVTT file.
@@ -771,7 +797,38 @@ pub mod prelude {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Cursor;
 
+    #[test]
+    fn test_from_reader() {
+        let data = b"WEBVTT
+
+00:01:02.000 --> 00:03:04.000
+Hello, world!
+
+00:03:05.000 --> 00:03:08.000
+Second subtitle";
+        let reader = Cursor::new(&data[..]);
+        let vtt = WebVtt::from_reader(reader).unwrap();
+        assert_eq!(vtt.cues.len(), 2);
+        assert_eq!(vtt.cues[0].payload, "Hello, world!");
+        assert_eq!(vtt.cues[1].payload, "Second subtitle");
+    }
+
+    #[test]
+    fn test_from_reader_with_invalid_data() {
+        let data = b"INVALID HEADER
+
+00:01:02.000 --> 00:03:04.000
+Hello, world!";
+        let reader = Cursor::new(&data[..]);
+        let result = WebVtt::from_reader(reader);
+        assert!(result.is_err());
+        match result {
+            Err(VttParseError::MissingHeader) => (),
+            _ => panic!("Expected MissingHeader error"),
+        }
+    }
     #[test]
     fn test_parse_timestamp() {
         let timestamp = VttTimestamp::from_str("01:23:45.678").unwrap();
