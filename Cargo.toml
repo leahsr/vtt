@@ -1,0 +1,29 @@
+[package]
+name = "vtt"
+version = "0.1.0"
+edition = "2021"
+authors = ["Roland Rodriguez <roland@govcraft.ai>"]
+description = "Rust types for serializing and deserializing WebVTT with Serde."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Govcraft/vtt"
+homepage = "https://github.com/Govcraft/vtt"
+documentation = "https://docs.rs/vtt"
+
+[dependencies]
+serde = { version = "1.0.216", features = ["derive"] }
+
+[dev-dependencies]
+serde_json = "1.0.133"
+
+[keywords]
+keywords = [
+  "webvtt",
+  "subtitle",
+  "parser",
+  "serialization",
+  "media",
+  "text-processing",
+]
+
+[categories]
+categories = ["text-processing", "multimedia", "parser-implementations"]
