@@ -8,14 +8,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/Govcraft/vtt"
 homepage = "https://github.com/Govcraft/vtt"
 documentation = "https://docs.rs/vtt"
-keywords = [
-  "webvtt",
-  "subtitle",
-  "parser",
-  "serialization",
-  "media",
-  "text-processing",
-]
+keywords = ["webvtt", "subtitle", "parser", "serialization", "media"]
 categories = ["text-processing", "multimedia", "parser-implementations"]
 
 [dependencies]
