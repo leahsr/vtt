@@ -1,6 +1,6 @@
 [package]
 name = "vtt"
-version = "0.2.0"
+version = "1.0.0"
 edition = "2021"
 authors = ["Roland Rodriguez <roland@govcraft.ai>"]
 description = "Rust types for serializing and deserializing WebVTT with Serde."
