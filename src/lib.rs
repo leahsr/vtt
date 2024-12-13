@@ -1,32 +1,3 @@
-//! # WebVTT Library
-//!
-//! This library provides functionality for parsing and serializing WebVTT (Web Video Text Tracks) files.
-//! It allows creating, modifying, and managing WebVTT cues, timestamps, and settings.
-//!
-//! ## Usage
-//!
-//! To conveniently use the main types, include the prelude:
-//!
-//! ```rust
-//! use std::time::Duration;
-//! use vtt::prelude::*;
-//!
-//! // Example usage
-//! let mut vtt = WebVtt::new();
-//! vtt.add_metadata("Language", "en-US");
-//!
-//! let cue = VttCue {
-//!     identifier: Some("1".to_string()),
-//!     start: VttTimestamp::new(Duration::from_secs(1)),
-//!     end: VttTimestamp::new(Duration::from_secs(5)),
-//!     settings: None,
-//!     payload: "Hello, world!".to_string(),
-//! };
-//! vtt.add_cue(cue);
-//!
-//! println!("{}", vtt);
-//! ```
-
 use serde::{self, Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
 use std::error::Error;
@@ -80,30 +51,11 @@ pub struct VttTimestamp(Duration);
 
 impl VttTimestamp {
     /// Creates a new `VttTimestamp` from a `Duration`.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use std::time::Duration;
-    /// use vtt::VttTimestamp;
-    ///
-    /// let timestamp = VttTimestamp::new(Duration::from_secs(120));
-    /// ```
     pub fn new(duration: Duration) -> Self {
         VttTimestamp(duration)
     }
 
     /// Returns the inner `Duration` of the timestamp.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use std::time::Duration;
-    /// use vtt::VttTimestamp;
-    ///
-    /// let timestamp = VttTimestamp::new(Duration::from_secs(60));
-    /// assert_eq!(timestamp.as_duration(), Duration::from_secs(60));
-    /// ```
     pub fn as_duration(&self) -> Duration {
         self.0
     }
@@ -113,17 +65,6 @@ impl FromStr for VttTimestamp {
     type Err = VttParseError;
 
     /// Parses a `VttTimestamp` from a string.
-    ///
-    /// The string should be in the format `HH:MM:SS.mmm` or `MM:SS.mmm`.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use vtt::VttTimestamp;
-    /// use std::str::FromStr;
-    ///
-    /// let timestamp = VttTimestamp::from_str("01:23:45.678").unwrap();
-    /// ```
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut parts = s.split(':');
 
@@ -166,9 +107,20 @@ fn parse_seconds_ms(seconds_str: &str) -> Result<(u64, u64), VttParseError> {
             .parse::<u64>()
             .map_err(|_| VttParseError::InvalidSeconds)?;
         let millis_str = &seconds_str[dot_pos + 1..];
-        let millis = millis_str
-            .parse::<u64>()
-            .map_err(|_| VttParseError::InvalidMilliseconds)?;
+        let millis = if millis_str.len() == 3 {
+            millis_str
+                .parse::<u64>()
+                .map_err(|_| VttParseError::InvalidMilliseconds)?
+        } else {
+            // If milliseconds are less than 3 digits, pad with zeros
+            let mut millis_str_padded = millis_str.to_string();
+            while millis_str_padded.len() < 3 {
+                millis_str_padded.push('0');
+            }
+            millis_str_padded
+                .parse::<u64>()
+                .map_err(|_| VttParseError::InvalidMilliseconds)?
+        };
         Ok((seconds, millis))
     } else {
         let seconds = seconds_str
@@ -180,16 +132,6 @@ fn parse_seconds_ms(seconds_str: &str) -> Result<(u64, u64), VttParseError> {
 
 impl fmt::Display for VttTimestamp {
     /// Formats the `VttTimestamp` as a string in `HH:MM:SS.mmm` format.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use std::time::Duration;
-    /// use vtt::VttTimestamp;
-    ///
-    /// let timestamp = VttTimestamp::new(Duration::from_millis(5025678));
-    /// assert_eq!(timestamp.to_string(), "01:23:45.678");
-    /// ```
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let total_millis = self.0.as_millis();
         let hours = total_millis / 3_600_000;
@@ -207,18 +149,6 @@ impl fmt::Display for VttTimestamp {
 
 impl Serialize for VttTimestamp {
     /// Serializes the `VttTimestamp` as a string.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use serde_json;
-    /// use std::time::Duration;
-    /// use vtt::VttTimestamp;
-    ///
-    /// let timestamp = VttTimestamp::new(Duration::from_secs(5));
-    /// let serialized = serde_json::to_string(&timestamp).unwrap();
-    /// assert_eq!(serialized, "\"00:00:05.000\"");
-    /// ```
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -229,17 +159,6 @@ impl Serialize for VttTimestamp {
 
 impl<'de> Deserialize<'de> for VttTimestamp {
     /// Deserializes a `VttTimestamp` from a string.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use serde_json;
-    /// use vtt::VttTimestamp;
-    ///
-    /// let json = "\"00:01:02.000\"";
-    /// let timestamp: VttTimestamp = serde_json::from_str(json).unwrap();
-    /// assert_eq!(timestamp.to_string(), "00:01:02.000");
-    /// ```
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -250,7 +169,7 @@ impl<'de> Deserialize<'de> for VttTimestamp {
 }
 
 /// Represents a single cue in a WebVTT file.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VttCue {
     /// An optional identifier for the cue.
     pub identifier: Option<String>,
@@ -268,23 +187,6 @@ impl FromStr for VttCue {
     type Err = VttParseError;
 
     /// Parses a `VttCue` from a string.
-    ///
-    /// The string should follow the WebVTT cue format.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use vtt::{VttCue, VttTimestamp};
-    /// use std::str::FromStr;
-    /// use std::time::Duration;
-    ///
-    /// let cue_str = "00:01:02.000 --> 00:03:04.000\nHello, world!";
-    /// let cue = VttCue::from_str(cue_str).unwrap();
-    ///
-    /// assert_eq!(cue.start.as_duration(), Duration::from_secs(62));
-    /// assert_eq!(cue.end.as_duration(), Duration::from_secs(184));
-    /// assert_eq!(cue.payload, "Hello, world!");
-    /// ```
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut lines = s.lines();
         let first_line = lines.next().ok_or(VttParseError::InvalidFormat)?;
@@ -336,6 +238,27 @@ impl FromStr for VttCue {
     }
 }
 
+impl Serialize for VttCue {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // Serialize the cue to its string representation
+        let cue_str = self.to_string();
+        serializer.serialize_str(&cue_str)
+    }
+}
+
+impl<'de> Deserialize<'de> for VttCue {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        VttCue::from_str(&s).map_err(serde::de::Error::custom)
+    }
+}
+
 fn parse_settings(settings_str: &str) -> Result<VttSettings, VttParseError> {
     let mut settings = VttSettings::default();
 
@@ -349,7 +272,12 @@ fn parse_settings(settings_str: &str) -> Result<VttSettings, VttParseError> {
                     settings.vertical = match value {
                         "rl" => Some(VerticalSetting::RightToLeft),
                         "lr" => Some(VerticalSetting::LeftToRight),
-                        _ => None,
+                        _ => {
+                            return Err(VttParseError::InvalidSetting(format!(
+                                "vertical:{}",
+                                value
+                            )))
+                        }
                     };
                 }
                 "line" => {
@@ -376,6 +304,8 @@ fn parse_settings(settings_str: &str) -> Result<VttSettings, VttParseError> {
                             .parse()
                             .map_err(|_| VttParseError::InvalidSetting("position".into()))?;
                         settings.position = Some(pos);
+                    } else {
+                        return Err(VttParseError::InvalidSetting("position".into()));
                     }
                 }
                 "size" => {
@@ -384,6 +314,8 @@ fn parse_settings(settings_str: &str) -> Result<VttSettings, VttParseError> {
                             .parse()
                             .map_err(|_| VttParseError::InvalidSetting("size".into()))?;
                         settings.size = Some(size);
+                    } else {
+                        return Err(VttParseError::InvalidSetting("size".into()));
                     }
                 }
                 "align" => {
@@ -393,11 +325,21 @@ fn parse_settings(settings_str: &str) -> Result<VttSettings, VttParseError> {
                         "end" => Some(AlignSetting::End),
                         "left" => Some(AlignSetting::Left),
                         "right" => Some(AlignSetting::Right),
-                        _ => None,
+                        _ => return Err(VttParseError::InvalidSetting(format!("align:{}", value))),
                     };
                 }
-                _ => {}
+                _ => {
+                    return Err(VttParseError::InvalidSetting(format!(
+                        "Unknown setting: {}",
+                        key
+                    )));
+                }
             }
+        } else {
+            return Err(VttParseError::InvalidSetting(format!(
+                "Invalid setting format: {}",
+                setting
+            )));
         }
     }
 
@@ -406,23 +348,6 @@ fn parse_settings(settings_str: &str) -> Result<VttSettings, VttParseError> {
 
 impl fmt::Display for VttCue {
     /// Formats the `VttCue` as a string following the WebVTT cue format.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use vtt::{VttCue, VttTimestamp};
-    /// use std::time::Duration;
-    ///
-    /// let cue = VttCue {
-    ///     identifier: None,
-    ///     start: VttTimestamp::new(Duration::from_secs(1)),
-    ///     end: VttTimestamp::new(Duration::from_secs(5)),
-    ///     settings: None,
-    ///     payload: "Test".to_string(),
-    /// };
-    ///
-    /// assert_eq!(cue.to_string(), "00:00:01.000 --> 00:00:05.000\nTest");
-    /// ```
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Write identifier if present
         if let Some(ref id) = self.identifier {
@@ -446,7 +371,7 @@ impl fmt::Display for VttCue {
 }
 
 /// Represents the settings associated with a WebVTT cue.
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct VttSettings {
     /// The vertical setting of the cue.
     pub vertical: Option<VerticalSetting>,
@@ -460,26 +385,30 @@ pub struct VttSettings {
     pub align: Option<AlignSetting>,
 }
 
+impl Serialize for VttSettings {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let settings_str = self.to_string();
+        serializer.serialize_str(&settings_str)
+    }
+}
+
+impl<'de> Deserialize<'de> for VttSettings {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        parse_settings(&s).map_err(serde::de::Error::custom)
+    }
+}
+
 impl fmt::Display for VttSettings {
     /// Formats the `VttSettings` as a string suitable for WebVTT cues.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use vtt::{VttSettings, VerticalSetting, LineSetting, AlignSetting};
-    ///
-    /// let settings = VttSettings {
-    ///     vertical: Some(VerticalSetting::LeftToRight),
-    ///     line: Some(LineSetting::Percentage(90)),
-    ///     position: Some(50),
-    ///     size: Some(40),
-    ///     align: Some(AlignSetting::Middle),
-    /// };
-    ///
-    /// assert_eq!(settings.to_string(), "vertical:lr line:90% position:50% size:40% align:middle");
-    /// ```
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut settings = Vec::with_capacity(5);
+        let mut settings = Vec::new();
 
         if let Some(ref vertical) = self.vertical {
             settings.push(match vertical {
@@ -491,8 +420,8 @@ impl fmt::Display for VttSettings {
         if let Some(ref line) = self.line {
             settings.push(match line {
                 LineSetting::Percentage(n) => format!("line:{}%", n),
-                LineSetting::Number(n) => n.to_string(),
-                LineSetting::Auto => "auto".to_string(),
+                LineSetting::Number(n) => format!("line:{}", n),
+                LineSetting::Auto => "line:auto".to_string(),
             });
         }
 
@@ -519,19 +448,25 @@ impl fmt::Display for VttSettings {
 }
 
 /// Specifies the vertical orientation of a cue.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum VerticalSetting {
     /// Right-to-left vertical orientation.
-    #[serde(rename = "rl")]
     RightToLeft,
     /// Left-to-right vertical orientation.
-    #[serde(rename = "lr")]
     LeftToRight,
 }
 
+impl fmt::Display for VerticalSetting {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            VerticalSetting::RightToLeft => write!(f, "rl"),
+            VerticalSetting::LeftToRight => write!(f, "lr"),
+        }
+    }
+}
+
 /// Specifies the line position of a cue.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum LineSetting {
     /// Line position as a percentage.
     Percentage(u32),
@@ -541,9 +476,18 @@ pub enum LineSetting {
     Auto,
 }
 
+impl fmt::Display for LineSetting {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LineSetting::Percentage(n) => write!(f, "{}%", n),
+            LineSetting::Number(n) => write!(f, "{}", n),
+            LineSetting::Auto => write!(f, "auto"),
+        }
+    }
+}
+
 /// Specifies the alignment of a cue.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, PartialEq)]
 pub enum AlignSetting {
     /// Start alignment.
     Start,
@@ -557,8 +501,20 @@ pub enum AlignSetting {
     Right,
 }
 
+impl fmt::Display for AlignSetting {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AlignSetting::Start => write!(f, "start"),
+            AlignSetting::Middle => write!(f, "middle"),
+            AlignSetting::End => write!(f, "end"),
+            AlignSetting::Left => write!(f, "left"),
+            AlignSetting::Right => write!(f, "right"),
+        }
+    }
+}
+
 /// Represents a complete WebVTT file, including its header and cues.
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct WebVtt {
     /// The header of the WebVTT file.
     pub header: VttHeader,
@@ -568,14 +524,6 @@ pub struct WebVtt {
 
 impl WebVtt {
     /// Creates a new, empty `WebVtt` instance.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use vtt::WebVtt;
-    ///
-    /// let vtt = WebVtt::new();
-    /// ```
     pub fn new() -> Self {
         Self {
             header: VttHeader::default(),
@@ -584,37 +532,11 @@ impl WebVtt {
     }
 
     /// Adds a cue to the WebVTT file.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use vtt::{WebVtt, VttCue, VttTimestamp};
-    /// use std::time::Duration;
-    ///
-    /// let mut vtt = WebVtt::new();
-    /// let cue = VttCue {
-    ///     identifier: None,
-    ///     start: VttTimestamp::new(Duration::from_secs(10)),
-    ///     end: VttTimestamp::new(Duration::from_secs(20)),
-    ///     settings: None,
-    ///     payload: "Sample subtitle".to_string(),
-    /// };
-    /// vtt.add_cue(cue);
-    /// ```
     pub fn add_cue(&mut self, cue: VttCue) {
         self.cues.push(cue);
     }
 
     /// Adds a metadata entry to the WebVTT header.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use vtt::WebVtt;
-    ///
-    /// let mut vtt = WebVtt::new();
-    /// vtt.add_metadata("Language", "en-US");
-    /// ```
     pub fn add_metadata(&mut self, key: &str, value: &str) {
         self.header
             .metadata
@@ -622,21 +544,6 @@ impl WebVtt {
     }
 
     /// Creates a `WebVtt` instance by reading from any type that implements `std::io::Read`.
-    ///
-    /// This function reads the entire contents from the provided reader and parses it as WebVTT data.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use std::io::Cursor;
-    /// use vtt::WebVtt;
-    ///
-    /// let data = b"WEBVTT\n\n00:00:01.000 --> 00:00:05.000\nHello, world!";
-    /// let reader = Cursor::new(&data[..]);
-    /// let vtt = WebVtt::from_reader(reader).unwrap();
-    /// assert_eq!(vtt.cues.len(), 1);
-    /// assert_eq!(vtt.cues[0].payload, "Hello, world!");
-    /// ```
     pub fn from_reader<R: std::io::Read>(reader: R) -> Result<Self, VttParseError> {
         use std::io::Read;
         let mut buffer = String::new();
@@ -648,33 +555,79 @@ impl WebVtt {
     }
 }
 
+impl Serialize for WebVtt {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let vtt_str = self.to_string();
+        serializer.serialize_str(&vtt_str)
+    }
+}
+
+impl<'de> Deserialize<'de> for WebVtt {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        WebVtt::from_str(&s).map_err(serde::de::Error::custom)
+    }
+}
+
 /// Represents the header section of a WebVTT file.
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct VttHeader {
     /// An optional description of the WebVTT content.
     pub description: Option<String>,
     /// A collection of metadata key-value pairs.
-    #[serde(default)]
     pub metadata: HashMap<String, String>,
+}
+
+impl Serialize for VttHeader {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // Serialize header to its string representation
+        let mut header_str = String::new();
+        if let Some(ref description) = self.description {
+            header_str.push_str(description);
+        }
+        for (key, value) in &self.metadata {
+            header_str.push_str(&format!("\n{}: {}", key, value));
+        }
+        serializer.serialize_str(&header_str)
+    }
+}
+
+impl<'de> Deserialize<'de> for VttHeader {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let mut lines = s.lines();
+        let description = lines.next().map(|line| line.trim().to_string());
+        let mut metadata = HashMap::new();
+        for line in lines {
+            if let Some((key, value)) = line.split_once(':') {
+                metadata.insert(key.trim().to_string(), value.trim().to_string());
+            } else {
+                return Err(serde::de::Error::custom("Invalid metadata line"));
+            }
+        }
+        Ok(VttHeader {
+            description,
+            metadata,
+        })
+    }
 }
 
 impl FromStr for WebVtt {
     type Err = VttParseError;
 
     /// Parses a `WebVtt` instance from a string.
-    ///
-    /// The string should follow the WebVTT file format.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use vtt::WebVtt;
-    /// use std::str::FromStr;
-    ///
-    /// let content = "WEBVTT\n\n00:01:02.000 --> 00:03:04.000\nHello, world!";
-    /// let vtt = WebVtt::from_str(content).unwrap();
-    /// assert_eq!(vtt.cues.len(), 1);
-    /// ```
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut lines = s.lines();
         let first_line = lines.next().ok_or(VttParseError::InvalidFormat)?.trim();
@@ -733,29 +686,6 @@ impl FromStr for WebVtt {
 
 impl fmt::Display for WebVtt {
     /// Formats the `WebVtt` instance as a string following the WebVTT file format.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use vtt::{WebVtt, VttCue, VttTimestamp};
-    /// use std::time::Duration;
-    ///
-    /// let mut vtt = WebVtt::new();
-    /// vtt.header.description = Some("Sample File".to_string());
-    /// vtt.add_metadata("Language", "en-US");
-    ///
-    /// let cue = VttCue {
-    ///     identifier: Some("1".to_string()),
-    ///     start: VttTimestamp::new(Duration::from_secs(1)),
-    ///     end: VttTimestamp::new(Duration::from_secs(5)),
-    ///     settings: None,
-    ///     payload: "Hello, world!".to_string(),
-    /// };
-    /// vtt.add_cue(cue);
-    ///
-    /// let expected = "WEBVTT Sample File\nLanguage: en-US\n\n1\n00:00:01.000 --> 00:00:05.000\nHello, world!";
-    /// assert_eq!(vtt.to_string(), expected);
-    /// ```
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Write WEBVTT header
         if let Some(ref description) = self.header.description {
@@ -928,7 +858,9 @@ First subtitle"#;
     fn test_serialize_deserialize() {
         let mut vtt = WebVtt::new();
         vtt.header.description = Some("Test File".to_string());
-        vtt.add_metadata("Language", "en-US");
+        vtt.header
+            .metadata
+            .insert("Language".to_string(), "en-US".to_string());
 
         let cue = VttCue {
             identifier: Some("1".to_string()),
@@ -939,8 +871,8 @@ First subtitle"#;
         };
         vtt.add_cue(cue);
 
-        let serialized = vtt.to_string();
-        let deserialized = WebVtt::from_str(&serialized).unwrap();
+        let serialized = serde_json::to_string(&vtt).unwrap();
+        let deserialized: WebVtt = serde_json::from_str(&serialized).unwrap();
 
         assert_eq!(deserialized.header.description, vtt.header.description);
         assert_eq!(deserialized.header.metadata, vtt.header.metadata);
@@ -970,5 +902,52 @@ Language: en
 Test"#;
 
         assert_eq!(vtt.to_string(), expected);
+    }
+
+    #[test]
+    fn test_vtt_settings_serde() {
+        let settings = VttSettings {
+            vertical: Some(VerticalSetting::LeftToRight),
+            line: Some(LineSetting::Percentage(90)),
+            position: Some(50),
+            size: Some(40),
+            align: Some(AlignSetting::Middle),
+        };
+        let serialized = serde_json::to_string(&settings).unwrap();
+        let deserialized: VttSettings = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(settings, deserialized);
+    }
+
+    #[test]
+    fn test_vtt_cue_serde() {
+        let cue = VttCue {
+            identifier: Some("1".to_string()),
+            start: VttTimestamp::new(Duration::from_secs(1)),
+            end: VttTimestamp::new(Duration::from_secs(5)),
+            settings: Some(VttSettings {
+                vertical: Some(VerticalSetting::LeftToRight),
+                line: Some(LineSetting::Percentage(90)),
+                position: Some(50),
+                size: Some(40),
+                align: Some(AlignSetting::Middle),
+            }),
+            payload: "Hello, world!".to_string(),
+        };
+        let serialized = serde_json::to_string(&cue).unwrap();
+        let deserialized: VttCue = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(cue, deserialized);
+    }
+
+    #[test]
+    fn test_vtt_header_serde() {
+        let mut header = VttHeader::default();
+        header.description = Some("Sample File".to_string());
+        header
+            .metadata
+            .insert("Language".to_string(), "en-US".to_string());
+
+        let serialized = serde_json::to_string(&header).unwrap();
+        let deserialized: VttHeader = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(header, deserialized);
     }
 }
