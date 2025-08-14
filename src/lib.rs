@@ -706,6 +706,7 @@ impl fmt::Display for WebVtt {
         for (i, cue) in self.cues.iter().enumerate() {
             if i > 0 {
                 writeln!(f)?; // Empty line between cues
+                writeln!(f)?;
             }
             write!(f, "{}", cue)?;
         }
@@ -893,13 +894,26 @@ First subtitle"#;
             settings: None,
             payload: "Test".to_string(),
         };
+
+        let cue2 = VttCue {
+            identifier: None,
+            start: VttTimestamp::new(Duration::from_secs(7)),
+            end: VttTimestamp::new(Duration::from_secs(10)),
+            settings: None,
+            payload: "Second Line should serialize with a newline".to_string(),
+        };
+
         vtt.add_cue(cue);
+        vtt.add_cue(cue2);
 
         let expected = r#"WEBVTT Test
 Language: en
 
 00:00:01.000 --> 00:00:05.000
-Test"#;
+Test
+
+00:00:07.000 --> 00:00:10.000
+Second Line should serialize with a newline"#;
 
         assert_eq!(vtt.to_string(), expected);
     }
